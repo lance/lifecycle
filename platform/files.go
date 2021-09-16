@@ -15,14 +15,16 @@ import (
 // analyzed.toml
 
 type AnalyzedMetadata struct {
-	Image    *ImageIdentifier `toml:"image"`
-	Metadata LayersMetadata   `toml:"metadata"`
-	RunImage *ImageIdentifier `toml:"run-image,omitempty"`
+	Image      *ImageIdentifier `toml:"image"`
+	Metadata   LayersMetadata   `toml:"metadata"`
+	RunImage   *ImageIdentifier `toml:"run-image,omitempty"`
+	BuildImage *ImageIdentifier `toml:"build-image,omitempty"`
 }
 
 // FIXME: fix key names to be accurate in the daemon case
-type ImageIdentifier struct {
-	Reference string `toml:"reference"`
+type ImageIdentifier struct { // TODO: this struct name is a bit misleading now
+	Reference string             `toml:"reference"`
+	Provides  buildpack.Provides `toml:"provides"`
 }
 
 // NOTE: This struct MUST be kept in sync with `LayersMetadataCompat`

@@ -1,0 +1,10 @@
+{
+  "provides": [
+    {
+      "name": "some-dep"
+    },
+    {
+      "name": "some-other-dep"
+    }
+  ]
+}

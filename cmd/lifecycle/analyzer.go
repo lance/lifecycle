@@ -32,6 +32,7 @@ type analyzeCmd struct {
 }
 
 type analyzeArgs struct {
+	buildImageRef    string // TODO: maybe change Ref to Tag
 	cacheImageRef    string
 	layersDir        string
 	outputImageRef   string
@@ -56,6 +57,7 @@ type analyzeArgsPlatform06 struct {
 
 func (a *analyzeCmd) DefineFlags() {
 	cmd.FlagAnalyzedPath(&a.analyzedPath)
+	cmd.FlagBuildImage(&a.buildImageRef)
 	cmd.FlagCacheImage(&a.cacheImageRef)
 	cmd.FlagLayersDir(&a.layersDir)
 	if a.platformAPIVersionGreaterThan06() {
@@ -124,6 +126,10 @@ func (a *analyzeCmd) Args(nargs int, args []string) error {
 		return cmd.FailErrCode(err, cmd.CodeInvalidArgs, "parse stack metadata")
 	}
 
+	if err := a.validateBuildImageInput(); err != nil {
+		return cmd.FailErrCode(err, cmd.CodeInvalidArgs, "validate build image input")
+	}
+
 	if err := a.validateRunImageInput(); err != nil {
 		return cmd.FailErrCode(err, cmd.CodeInvalidArgs, "validate run image input")
 	}
@@ -157,7 +163,7 @@ func (a *analyzeCmd) Privileges() error {
 			return cmd.FailErr(err, "initialize docker client")
 		}
 	}
-	if a.platformAPIVersionGreaterThan06() {
+	if a.platformAPIVersionGreaterThan06() { // TODO: this could be moved to the lifecycle package as it doesn't require root privileges
 		if err := image.VerifyRegistryAccess(a, a.keychain); err != nil {
 			return cmd.FailErr(err)
 		}
@@ -212,34 +218,30 @@ func (a *analyzeCmd) Exec() error {
 }
 
 func (aa analyzeArgs) analyze() (platform.AnalyzedMetadata, error) {
-	var (
-		img imgutil.Image
-		err error
-	)
-	if aa.useDaemon {
-		img, err = local.NewImage(
-			aa.previousImageRef,
-			aa.docker,
-			local.FromBaseImage(aa.previousImageRef),
-		)
-	} else {
-		img, err = remote.NewImage(
-			aa.previousImageRef,
-			aa.keychain,
-			remote.FromBaseImage(aa.previousImageRef),
-		)
+	buildImage, err := localOrRemote(aa.buildImageRef, aa.docker, aa.keychain)
+	if err != nil {
+		return platform.AnalyzedMetadata{}, cmd.FailErr(err, "get build image")
 	}
+
+	previousImage, err := localOrRemote(aa.previousImageRef, aa.docker, aa.keychain)
 	if err != nil {
 		return platform.AnalyzedMetadata{}, cmd.FailErr(err, "get previous image")
 	}
 
+	runImage, err := localOrRemote(aa.runImageRef, aa.docker, aa.keychain)
+	if err != nil {
+		return platform.AnalyzedMetadata{}, cmd.FailErr(err, "get run image")
+	}
+
 	analyzedMD, err := (&lifecycle.Analyzer{
+		BuildImage:            buildImage,
 		Buildpacks:            aa.platform06.group.Group,
 		Cache:                 aa.platform06.cache,
+		LayerMetadataRestorer: lifecycle.NewLayerMetadataRestorer(cmd.DefaultLogger, aa.layersDir, aa.platform06.skipLayers),
 		Logger:                cmd.DefaultLogger,
 		Platform:              aa.platform,
-		Image:                 img,
-		LayerMetadataRestorer: lifecycle.NewLayerMetadataRestorer(cmd.DefaultLogger, aa.layersDir, aa.platform06.skipLayers),
+		PreviousImage:         previousImage,
+		RunImage:              runImage,
 	}).Analyze()
 	if err != nil {
 		return platform.AnalyzedMetadata{}, cmd.FailErrCode(err, aa.platform.CodeFor(cmd.AnalyzeError), "analyzer")
@@ -256,6 +258,22 @@ func (aa analyzeArgs) analyze() (platform.AnalyzedMetadata, error) {
 	return analyzedMD, nil
 }
 
+func localOrRemote(fromImage string, docker client.CommonAPIClient, keychain authn.Keychain) (imgutil.Image, error) { // TODO: see if this function can be shared by other phases
+	if docker != nil { // local
+		return local.NewImage(
+			fromImage,
+			docker,
+			local.FromBaseImage(fromImage),
+		)
+	}
+
+	return remote.NewImage( // remote
+		fromImage,
+		keychain,
+		remote.FromBaseImage(fromImage),
+	)
+}
+
 func (a *analyzeCmd) platformAPIVersionGreaterThan06() bool {
 	return api.MustParse(a.platform.API()).AtLeast("0.7")
 }
@@ -264,8 +282,19 @@ func (a *analyzeCmd) restoresLayerMetadata() bool {
 	return !a.platformAPIVersionGreaterThan06()
 }
 
+func (a *analyzeCmd) supportsBuildImage() bool {
+	return api.MustParse(a.platform.API()).AtLeast("0.8")
+}
+
 func (a *analyzeCmd) supportsRunImage() bool {
 	return a.platformAPIVersionGreaterThan06()
+}
+
+func (a *analyzeCmd) validateBuildImageInput() error { // TODO: this and similar logic should be handed off to a validator
+	if !a.supportsBuildImage() && a.buildImageRef != "" {
+		return errors.New("-build-image is unsupported")
+	}
+	return nil
 }
 
 func (a *analyzeCmd) validateRunImageInput() error {
@@ -291,7 +320,7 @@ func (a *analyzeCmd) populateRunImage(stackMD platform.StackMetadata, targetRegi
 func (aa *analyzeArgs) ReadableRegistryImages() []string {
 	var readableImages []string
 	if !aa.useDaemon {
-		readableImages = appendNotEmpty(readableImages, aa.previousImageRef, aa.runImageRef)
+		readableImages = appendNotEmpty(readableImages, aa.previousImageRef, aa.runImageRef, aa.buildImageRef)
 	}
 	return readableImages
 }

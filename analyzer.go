@@ -14,9 +14,11 @@ type Platform interface {
 }
 
 type Analyzer struct {
-	Image    imgutil.Image
-	Logger   Logger
-	Platform Platform
+	BuildImage    imgutil.Image
+	PreviousImage imgutil.Image
+	RunImage      imgutil.Image
+	Logger        Logger
+	Platform      Platform
 
 	// Platform API < 0.7
 	Buildpacks            []buildpack.GroupBuildpack
@@ -27,20 +29,36 @@ type Analyzer struct {
 // Analyze fetches the layers metadata from the previous image and writes analyzed.toml.
 func (a *Analyzer) Analyze() (platform.AnalyzedMetadata, error) {
 	var (
-		appMeta   platform.LayersMetadata
-		cacheMeta platform.CacheMetadata
-		imageID   *platform.ImageIdentifier
-		err       error
+		appMeta         platform.LayersMetadata
+		cacheMeta       platform.CacheMetadata
+		buildImageID    *platform.ImageIdentifier
+		previousImageID *platform.ImageIdentifier
+		err             error
 	)
 
-	if a.Image != nil { // Image is optional in Platform API >= 0.7
-		imageID, err = a.getImageIdentifier(a.Image)
+	if a.BuildImage != nil { // TODO: refactor to reduce duplication // TODO: also check platform api
+		a.Logger.Debugf("Processing build image %s", a.BuildImage)
+		buildImageID, err = a.getImageIdentifier(a.BuildImage)
+		if err != nil {
+			return platform.AnalyzedMetadata{}, errors.Wrap(err, "retrieving image identifier")
+		}
+
+		var buildProvides buildpack.Provides
+		// continue even if the label cannot be decoded
+		if err := DecodeLabel(a.BuildImage, platform.ProvidesLabel, &buildProvides); err != nil {
+			buildProvides = buildpack.Provides{}
+		}
+		buildImageID.Provides = buildProvides
+	}
+
+	if a.PreviousImage != nil { // Image is optional in Platform API >= 0.7
+		previousImageID, err = a.getImageIdentifier(a.PreviousImage)
 		if err != nil {
 			return platform.AnalyzedMetadata{}, errors.Wrap(err, "retrieving image identifier")
 		}
 
 		// continue even if the label cannot be decoded
-		if err := DecodeLabel(a.Image, platform.LayerMetadataLabel, &appMeta); err != nil {
+		if err := DecodeLabel(a.PreviousImage, platform.LayerMetadataLabel, &appMeta); err != nil {
 			appMeta = platform.LayersMetadata{}
 		}
 	} else {
@@ -60,8 +78,9 @@ func (a *Analyzer) Analyze() (platform.AnalyzedMetadata, error) {
 	}
 
 	return platform.AnalyzedMetadata{
-		Image:    imageID,
-		Metadata: appMeta,
+		Image:      previousImageID,
+		Metadata:   appMeta,
+		BuildImage: buildImageID,
 	}, nil
 }
 

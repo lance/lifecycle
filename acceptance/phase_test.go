@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/buildpacks/lifecycle/buildpack"
+
 	ih "github.com/buildpacks/imgutil/testhelpers"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/registry"
@@ -216,8 +218,11 @@ func (r *targetRegistry) start(t *testing.T) {
 func (r *targetRegistry) createFixtures(t *testing.T) {
 	var fixtures regImageFixtures
 
+	var toProvide buildpack.Provides
+
 	appMeta := minifyMetadata(t, filepath.Join("testdata", "app_image_metadata.json"), platform.LayersMetadata{})
 	cacheMeta := minifyMetadata(t, filepath.Join("testdata", "cache_image_metadata.json"), platform.CacheMetadata{})
+	provides := minifyMetadata(t, filepath.Join("testdata", "provides.json"), toProvide)
 
 	// With Permissions
 
@@ -231,6 +236,7 @@ func (r *targetRegistry) createFixtures(t *testing.T) {
 		r.registry,
 		"--build-arg", "fromImage="+containerBaseImage,
 		"--build-arg", "metadata="+appMeta,
+		"--build-arg", "provides="+provides,
 	)
 	r.registry.SetReadOnly(someReadOnlyAppName)
 

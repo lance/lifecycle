@@ -40,6 +40,7 @@ var (
 const (
 	EnvAnalyzedPath        = "CNB_ANALYZED_PATH"
 	EnvAppDir              = "CNB_APP_DIR"
+	EnvBuildImage          = "CNB_BUILD_IMAGE"
 	EnvBuildpacksDir       = "CNB_BUILDPACKS_DIR"
 	EnvCacheDir            = "CNB_CACHE_DIR"
 	EnvCacheImage          = "CNB_CACHE_IMAGE"
@@ -78,6 +79,10 @@ func DefaultAnalyzedPath(platformAPI, layersDir string) string {
 
 func FlagAppDir(appDir *string) {
 	flagSet.StringVar(appDir, "app", EnvOrDefault(EnvAppDir, DefaultAppDir), "path to app directory")
+}
+
+func FlagBuildImage(buildImage *string) {
+	flagSet.StringVar(buildImage, "build-image", os.Getenv(EnvBuildImage), "build image tag name")
 }
 
 func FlagBuildpacksDir(buildpacksDir *string) {

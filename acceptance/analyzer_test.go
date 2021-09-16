@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/buildpacks/lifecycle/buildpack"
+
 	"github.com/BurntSushi/toml"
 	"github.com/sclevine/spec"
 	"github.com/sclevine/spec/report"
@@ -272,6 +274,103 @@ func testAnalyzerFunc(platformAPI string) func(t *testing.T, when spec.G, it spe
 			)
 
 			h.AssertMatch(t, output, "2222 3333 .+ some-analyzed.toml")
+		})
+
+		when("build image", func() {
+			when("provided", func() {
+				it.Focus("is recorded in analyzed.toml", func() {
+					h.SkipIf(t, api.MustParse(platformAPI).LessThan("0.8"), "Platform API < 0.8 does not accept build image")
+
+					h.DockerRunAndCopy(t,
+						containerName,
+						copyDir,
+						ctrPath("/layers/analyzed.toml"),
+						analyzeImage,
+						h.WithFlags(
+							"--env", "CNB_PLATFORM_API="+platformAPI,
+							"--env", "CNB_REGISTRY_AUTH="+analyzeRegAuthConfig,
+							"--network", analyzeRegNetwork,
+						),
+						h.WithArgs(
+							ctrPath(analyzerPath),
+							"-build-image", analyzeRegFixtures.ReadOnlyRunImage, // TODO: construct build image fixture and use instead
+							"-run-image", analyzeRegFixtures.ReadOnlyRunImage,
+							"-log-level", "debug",
+							analyzeRegFixtures.SomeAppImage,
+						),
+					)
+
+					analyzedMD := assertAnalyzedMetadata(t, filepath.Join(copyDir, "analyzed.toml"))
+					h.AssertStringContains(t, analyzedMD.BuildImage.Reference, analyzeRegFixtures.ReadOnlyRunImage+"@sha256:")
+					expectedProvides := buildpack.Provides{Provides: []buildpack.Provide{
+						{Name: "some-dep"},
+						{Name: "some-other-dep"},
+					}}
+					h.AssertEq(t, analyzedMD.BuildImage.Provides, expectedProvides)
+				})
+			})
+
+			when("not provided", func() {
+				it("falls back to CNB_BUILD_IMAGE", func() {
+					h.SkipIf(t, api.MustParse(platformAPI).LessThan("0.8"), "Platform API < 0.8 does not accept build image")
+
+					h.DockerRunAndCopy(t,
+						containerName,
+						copyDir,
+						ctrPath("/layers/analyzed.toml"),
+						analyzeImage,
+						h.WithFlags(
+							"--env", "CNB_PLATFORM_API="+platformAPI,
+							"--env", "CNB_REGISTRY_AUTH="+analyzeRegAuthConfig,
+							"--env", "CNB_BUILD_IMAGE="+analyzeRegFixtures.ReadOnlyRunImage, // TODO: construct build image fixture and use instead
+							"--network", analyzeRegNetwork,
+						),
+						h.WithArgs(ctrPath(analyzerPath), analyzeRegFixtures.SomeAppImage),
+					)
+
+					analyzedMD := assertAnalyzedMetadata(t, filepath.Join(copyDir, "analyzed.toml"))
+					h.AssertEq(t, analyzedMD.BuildImage.Reference, analyzeRegFixtures.ReadOnlyRunImage)
+				})
+
+				when("CNB_BUILD_IMAGE not provided", func() {
+					it("falls back to stack.toml", func() { // TODO: is this what we want?
+						h.SkipIf(t, api.MustParse(platformAPI).LessThan("0.8"), "Platform API < 0.8 does not accept build image")
+
+						cmd := exec.Command("docker", "run", "--rm",
+							"--env", "CNB_PLATFORM_API="+platformAPI,
+							"--env", "CNB_REGISTRY_AUTH="+analyzeRegAuthConfig,
+							"--network", analyzeRegNetwork,
+							analyzeImage,
+							ctrPath(analyzerPath),
+							"-stack", "/cnb/platform-0.8-stack.toml", // build image is some-build-image // TODO: create
+							analyzeRegFixtures.SomeAppImage,
+						) // #nosec G204
+						output, err := cmd.CombinedOutput()
+						h.AssertNotNil(t, err)
+
+						h.AssertStringContains(t, string(output), "failed to : ensure registry read access to some-build-image") // TODO: update some-build-image to have explicit permissions when https://github.com/buildpacks/lifecycle/pull/685 is merged
+					})
+
+					when("stack.toml not present", func() {
+						it("errors", func() {
+							h.SkipIf(t, api.MustParse(platformAPI).LessThan("0.8"), "Platform API < 0.8 does not accept build image")
+
+							cmd := exec.Command(
+								"docker", "run", "--rm",
+								"--env", "CNB_PLATFORM_API="+platformAPI,
+								analyzeImage,
+								ctrPath(analyzerPath),
+								"some-image",
+							) // #nosec G204
+							output, err := cmd.CombinedOutput()
+
+							h.AssertNotNil(t, err)
+							expected := "-build-image is required when there is no stack metadata available"
+							h.AssertStringContains(t, string(output), expected)
+						})
+					})
+				})
+			})
 		})
 
 		when("run image", func() {

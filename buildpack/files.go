@@ -158,6 +158,10 @@ type PlanSections struct {
 	Provides []Provide `toml:"provides"`
 }
 
+type Provides struct { // TODO: check
+	Provides []Provide
+}
+
 type Provide struct {
 	Name string `toml:"name"`
 }

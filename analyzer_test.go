@@ -38,7 +38,8 @@ func testAnalyzerBuilder(platformAPI string) func(t *testing.T, when spec.G, it 
 			layersDir        string
 			tmpDir           string
 			analyzer         *lifecycle.Analyzer
-			image            *fakes.Image
+			buildImage       *fakes.Image
+			previousImage    *fakes.Image
 			metadataRestorer *testmock.MockLayerMetadataRestorer
 			mockCtrl         *gomock.Controller
 			testCache        lifecycle.Cache
@@ -59,7 +60,11 @@ func testAnalyzerBuilder(platformAPI string) func(t *testing.T, when spec.G, it 
 			testCache, err = cache.NewVolumeCache(cacheDir)
 			h.AssertNil(t, err)
 
-			image = fakes.NewImage("image-repo-name", "", local.IDIdentifier{
+			buildImage = fakes.NewImage("build-image-repo-name", "", local.IDIdentifier{
+				ImageID: "s0m3BuildD1g3sT",
+			})
+
+			previousImage = fakes.NewImage("image-repo-name", "", local.IDIdentifier{
 				ImageID: "s0m3D1g3sT",
 			})
 
@@ -71,9 +76,10 @@ func testAnalyzerBuilder(platformAPI string) func(t *testing.T, when spec.G, it 
 			p, err := platform.NewPlatform(platformAPI)
 			h.AssertNil(t, err)
 			analyzer = &lifecycle.Analyzer{
-				Image:    image,
-				Logger:   &discardLogger,
-				Platform: p,
+				BuildImage:    buildImage,
+				Logger:        &discardLogger,
+				Platform:      p,
+				PreviousImage: previousImage,
 				Buildpacks: []buildpack.GroupBuildpack{
 					{ID: "metadata.buildpack", API: api.Buildpack.Latest().String()},
 					{ID: "no.cache.buildpack", API: api.Buildpack.Latest().String()},
@@ -93,7 +99,7 @@ func testAnalyzerBuilder(platformAPI string) func(t *testing.T, when spec.G, it 
 			h.AssertNil(t, os.RemoveAll(tmpDir))
 			h.AssertNil(t, os.RemoveAll(layersDir))
 			h.AssertNil(t, os.RemoveAll(cacheDir))
-			h.AssertNil(t, image.Cleanup())
+			h.AssertNil(t, previousImage.Cleanup())
 			mockCtrl.Finish()
 		})
 
@@ -101,6 +107,7 @@ func testAnalyzerBuilder(platformAPI string) func(t *testing.T, when spec.G, it 
 			var (
 				expectedAppMetadata   platform.LayersMetadata
 				expectedCacheMetadata platform.CacheMetadata
+				expectedProvides      buildpack.Provides
 				ref                   *testmock.MockReference
 			)
 
@@ -120,7 +127,7 @@ func testAnalyzerBuilder(platformAPI string) func(t *testing.T, when spec.G, it 
 			when("image exists", func() {
 				it.Before(func() {
 					metadata := h.MustReadFile(t, filepath.Join("testdata", "analyzer", "app_metadata.json"))
-					h.AssertNil(t, image.SetLabel("io.buildpacks.lifecycle.metadata", string(metadata)))
+					h.AssertNil(t, previousImage.SetLabel("io.buildpacks.lifecycle.metadata", string(metadata)))
 					h.AssertNil(t, json.Unmarshal(metadata, &expectedAppMetadata))
 				})
 
@@ -156,7 +163,7 @@ func testAnalyzerBuilder(platformAPI string) func(t *testing.T, when spec.G, it 
 
 			when("image not found", func() {
 				it.Before(func() {
-					h.AssertNil(t, image.Delete())
+					h.AssertNil(t, previousImage.Delete())
 					expectRestoresLayerMetadataIfSupported()
 				})
 
@@ -171,7 +178,7 @@ func testAnalyzerBuilder(platformAPI string) func(t *testing.T, when spec.G, it 
 
 			when("image does not have metadata label", func() {
 				it.Before(func() {
-					h.AssertNil(t, image.SetLabel("io.buildpacks.lifecycle.metadata", ""))
+					h.AssertNil(t, previousImage.SetLabel("io.buildpacks.lifecycle.metadata", ""))
 					expectRestoresLayerMetadataIfSupported()
 				})
 
@@ -184,7 +191,7 @@ func testAnalyzerBuilder(platformAPI string) func(t *testing.T, when spec.G, it 
 
 			when("image has incompatible metadata", func() {
 				it.Before(func() {
-					h.AssertNil(t, image.SetLabel("io.buildpacks.lifecycle.metadata", `{["bad", "metadata"]}`))
+					h.AssertNil(t, previousImage.SetLabel("io.buildpacks.lifecycle.metadata", `{["bad", "metadata"]}`))
 					expectRestoresLayerMetadataIfSupported()
 				})
 
@@ -192,6 +199,26 @@ func testAnalyzerBuilder(platformAPI string) func(t *testing.T, when spec.G, it 
 					md, err := analyzer.Analyze()
 					h.AssertNil(t, err)
 					h.AssertEq(t, md.Metadata, platform.LayersMetadata{})
+				})
+			})
+
+			when("build image", func() {
+				it.Before(func() {
+					metadata := h.MustReadFile(t, filepath.Join("testdata", "analyzer", "provides.json"))
+					h.AssertNil(t, buildImage.SetLabel("io.buildpacks.provides", string(metadata)))
+					h.AssertNil(t, json.Unmarshal(metadata, &expectedProvides))
+				})
+
+				it.Focus("returns the build image provides", func() {
+					h.SkipIf(t, api.MustParse(analyzer.Platform.API()).LessThan("0.8"), "Platform < 0.8 does not accept build image")
+
+					expectRestoresLayerMetadataIfSupported()
+
+					md, err := analyzer.Analyze()
+					h.AssertNil(t, err)
+
+					h.AssertEq(t, md.BuildImage.Reference, "s0m3BuildD1g3sT")
+					h.AssertEq(t, md.BuildImage.Provides, expectedProvides)
 				})
 			})
 		})
