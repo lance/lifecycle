@@ -247,7 +247,7 @@ func (aa analyzeArgs) analyze() (platform.AnalyzedMetadata, error) {
 		return platform.AnalyzedMetadata{}, cmd.FailErrCode(err, aa.platform.CodeFor(cmd.AnalyzeError), "analyzer")
 	}
 
-	if aa.runImageRef != "" {
+	if aa.runImageRef != "" { // TODO: fix
 		ref, err := name.ParseReference(aa.runImageRef, name.WeakValidation)
 		if err != nil {
 			return platform.AnalyzedMetadata{}, cmd.FailErrCode(err, aa.platform.CodeFor(cmd.AnalyzeError), "parse reference for run image")

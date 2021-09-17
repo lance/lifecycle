@@ -236,7 +236,6 @@ func (r *targetRegistry) createFixtures(t *testing.T) {
 		r.registry,
 		"--build-arg", "fromImage="+containerBaseImage,
 		"--build-arg", "metadata="+appMeta,
-		"--build-arg", "provides="+provides,
 	)
 	r.registry.SetReadOnly(someReadOnlyAppName)
 
@@ -258,6 +257,7 @@ func (r *targetRegistry) createFixtures(t *testing.T) {
 		filepath.Join("testdata", "cache-image"),
 		r.registry,
 		"--build-arg", "fromImage="+containerBaseImageFull,
+		"--build-arg", "provides="+provides,
 	)
 	fixtures.ReadOnlyRunImage = r.registry.SetReadOnly(someRunImageName)
 

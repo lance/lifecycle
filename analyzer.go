@@ -37,7 +37,6 @@ func (a *Analyzer) Analyze() (platform.AnalyzedMetadata, error) {
 	)
 
 	if a.BuildImage != nil { // TODO: refactor to reduce duplication // TODO: also check platform api
-		a.Logger.Debugf("Processing build image %s", a.BuildImage)
 		buildImageID, err = a.getImageIdentifier(a.BuildImage)
 		if err != nil {
 			return platform.AnalyzedMetadata{}, errors.Wrap(err, "retrieving image identifier")
