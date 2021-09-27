@@ -6,6 +6,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/buildpacks/lifecycle/buildpack/dataformat"
+
 	"github.com/apex/log"
 	"github.com/apex/log/handlers/memory"
 	"github.com/golang/mock/gomock"
@@ -429,7 +431,7 @@ func testDetector(t *testing.T, when spec.G, it spec.S) {
 					Providers: []buildpack.GroupBuildpack{
 						{ID: "A", Version: "v1"},
 					},
-					Requires: []buildpack.Require{
+					Requires: []dataformat.Require{
 						{
 							Name:    "dep1",
 							Version: "some-version",
@@ -440,7 +442,7 @@ func testDetector(t *testing.T, when spec.G, it spec.S) {
 					Providers: []buildpack.GroupBuildpack{
 						{ID: "B", Version: "v1"},
 					},
-					Requires: []buildpack.Require{
+					Requires: []dataformat.Require{
 						{
 							Name:     "dep2",
 							Version:  "some-already-exists-version",
@@ -464,7 +466,7 @@ func testDetector(t *testing.T, when spec.G, it spec.S) {
 					Providers: []buildpack.GroupBuildpack{
 						{ID: "A", Version: "v1"},
 					},
-					Requires: []buildpack.Require{
+					Requires: []dataformat.Require{
 						{Name: "dep1", Metadata: map[string]interface{}{"version": "some-version"}},
 					},
 				},
@@ -472,7 +474,7 @@ func testDetector(t *testing.T, when spec.G, it spec.S) {
 					Providers: []buildpack.GroupBuildpack{
 						{ID: "B", Version: "v1"},
 					},
-					Requires: []buildpack.Require{
+					Requires: []dataformat.Require{
 						{Name: "dep2", Metadata: map[string]interface{}{"version": "some-already-exists-version"}},
 					},
 				},
@@ -486,15 +488,15 @@ func testDetector(t *testing.T, when spec.G, it spec.S) {
 			buildpackStore.EXPECT().Lookup("A", "v1").Return(bpA1, nil)
 			bpA1.EXPECT().ConfigFile().Return(&buildpack.Descriptor{API: "0.3"})
 			bpA1.EXPECT().Detect(gomock.Any(), gomock.Any()).Return(buildpack.DetectRun{
-				BuildPlan: buildpack.BuildPlan{
-					PlanSections: buildpack.PlanSections{
-						Requires: []buildpack.Require{{Name: "some-dep"}},
-						Provides: []buildpack.Provide{{Name: "some-dep"}},
+				BuildPlan: dataformat.BuildPlan{
+					PlanSections: dataformat.PlanSections{
+						Requires: []dataformat.Require{{Name: "some-dep"}},
+						Provides: []dataformat.Provide{{Name: "some-dep"}},
 					},
-					Or: []buildpack.PlanSections{
+					Or: []dataformat.PlanSections{
 						{
-							Requires: []buildpack.Require{{Name: "some-other-dep"}},
-							Provides: []buildpack.Provide{{Name: "some-other-dep"}},
+							Requires: []dataformat.Require{{Name: "some-other-dep"}},
+							Provides: []dataformat.Provide{{Name: "some-other-dep"}},
 						},
 					},
 				},
@@ -528,15 +530,15 @@ func testDetector(t *testing.T, when spec.G, it spec.S) {
 				t.Fatalf("missing detection of '%s'", "A@v1")
 			}
 			if s := cmp.Diff(bpARun, buildpack.DetectRun{
-				BuildPlan: buildpack.BuildPlan{
-					PlanSections: buildpack.PlanSections{
-						Requires: []buildpack.Require{{Name: "some-dep"}},
-						Provides: []buildpack.Provide{{Name: "some-dep"}},
+				BuildPlan: dataformat.BuildPlan{
+					PlanSections: dataformat.PlanSections{
+						Requires: []dataformat.Require{{Name: "some-dep"}},
+						Provides: []dataformat.Provide{{Name: "some-dep"}},
 					},
-					Or: []buildpack.PlanSections{
+					Or: []dataformat.PlanSections{
 						{
-							Requires: []buildpack.Require{{Name: "some-other-dep"}},
-							Provides: []buildpack.Provide{{Name: "some-other-dep"}},
+							Requires: []dataformat.Require{{Name: "some-other-dep"}},
+							Provides: []dataformat.Provide{{Name: "some-other-dep"}},
 						},
 					},
 				},
@@ -763,22 +765,22 @@ func testDetector(t *testing.T, when spec.G, it spec.S) {
 
 			detectRuns := &sync.Map{}
 			detectRuns.Store("A@v1", buildpack.DetectRun{
-				BuildPlan: buildpack.BuildPlan{
-					PlanSections: buildpack.PlanSections{
-						Provides: []buildpack.Provide{
+				BuildPlan: dataformat.BuildPlan{
+					PlanSections: dataformat.PlanSections{
+						Provides: []dataformat.Provide{
 							{Name: "dep1"},
 							{Name: "dep2"},
 						},
-						Requires: []buildpack.Require{
+						Requires: []dataformat.Require{
 							{Name: "dep2"},
 						},
 					},
 				},
 			})
 			detectRuns.Store("B@v1", buildpack.DetectRun{
-				BuildPlan: buildpack.BuildPlan{
-					PlanSections: buildpack.PlanSections{
-						Requires: []buildpack.Require{
+				BuildPlan: dataformat.BuildPlan{
+					PlanSections: dataformat.PlanSections{
+						Requires: []dataformat.Require{
 							{Name: "dep1"},
 							{Name: "dep2"},
 						},
@@ -786,9 +788,9 @@ func testDetector(t *testing.T, when spec.G, it spec.S) {
 				},
 			})
 			detectRuns.Store("C@v2", buildpack.DetectRun{
-				BuildPlan: buildpack.BuildPlan{
-					PlanSections: buildpack.PlanSections{
-						Provides: []buildpack.Provide{
+				BuildPlan: dataformat.BuildPlan{
+					PlanSections: dataformat.PlanSections{
+						Provides: []dataformat.Provide{
 							{Name: "dep1"},
 							{Name: "dep2"},
 						},
@@ -796,12 +798,12 @@ func testDetector(t *testing.T, when spec.G, it spec.S) {
 				},
 			})
 			detectRuns.Store("D@v2", buildpack.DetectRun{
-				BuildPlan: buildpack.BuildPlan{
-					PlanSections: buildpack.PlanSections{
-						Provides: []buildpack.Provide{
+				BuildPlan: dataformat.BuildPlan{
+					PlanSections: dataformat.PlanSections{
+						Provides: []dataformat.Provide{
 							{Name: "dep2"},
 						},
-						Requires: []buildpack.Require{
+						Requires: []dataformat.Require{
 							{Name: "dep1"},
 							{Name: "dep2"},
 						},
@@ -824,7 +826,7 @@ func testDetector(t *testing.T, when spec.G, it spec.S) {
 						{ID: "A", Version: "v1"},
 						{ID: "C", Version: "v2"},
 					},
-					Requires: []buildpack.Require{{Name: "dep1"}, {Name: "dep1"}},
+					Requires: []dataformat.Require{{Name: "dep1"}, {Name: "dep1"}},
 				},
 				{
 					Providers: []buildpack.GroupBuildpack{
@@ -832,7 +834,7 @@ func testDetector(t *testing.T, when spec.G, it spec.S) {
 						{ID: "C", Version: "v2"},
 						{ID: "D", Version: "v2"},
 					},
-					Requires: []buildpack.Require{{Name: "dep2"}, {Name: "dep2"}, {Name: "dep2"}},
+					Requires: []dataformat.Require{{Name: "dep2"}, {Name: "dep2"}, {Name: "dep2"}},
 				},
 			}) {
 				t.Fatalf("Unexpected entries:\n%+v\n", entries)
@@ -863,9 +865,9 @@ func testDetector(t *testing.T, when spec.G, it spec.S) {
 
 			detectRuns := &sync.Map{}
 			detectRuns.Store("A@v1", buildpack.DetectRun{
-				BuildPlan: buildpack.BuildPlan{
-					PlanSections: buildpack.PlanSections{
-						Provides: []buildpack.Provide{
+				BuildPlan: dataformat.BuildPlan{
+					PlanSections: dataformat.PlanSections{
+						Provides: []dataformat.Provide{
 							{Name: "dep1"},
 						},
 					},
@@ -873,21 +875,21 @@ func testDetector(t *testing.T, when spec.G, it spec.S) {
 				Code: 100,
 			})
 			detectRuns.Store("B@v1", buildpack.DetectRun{
-				BuildPlan: buildpack.BuildPlan{
-					PlanSections: buildpack.PlanSections{
-						Requires: []buildpack.Require{
+				BuildPlan: dataformat.BuildPlan{
+					PlanSections: dataformat.PlanSections{
+						Requires: []dataformat.Require{
 							{Name: "dep1"},
 						},
 					},
 				},
 			})
 			detectRuns.Store("C@v1", buildpack.DetectRun{
-				BuildPlan: buildpack.BuildPlan{
-					PlanSections: buildpack.PlanSections{
-						Provides: []buildpack.Provide{
+				BuildPlan: dataformat.BuildPlan{
+					PlanSections: dataformat.PlanSections{
+						Provides: []dataformat.Provide{
 							{Name: "dep1"},
 						},
-						Requires: []buildpack.Require{
+						Requires: []dataformat.Require{
 							{Name: "dep1"},
 						},
 					},
@@ -920,30 +922,30 @@ func testDetector(t *testing.T, when spec.G, it spec.S) {
 
 			detectRuns := &sync.Map{}
 			detectRuns.Store("A@v1", buildpack.DetectRun{
-				BuildPlan: buildpack.BuildPlan{
-					PlanSections: buildpack.PlanSections{
-						Provides: []buildpack.Provide{
+				BuildPlan: dataformat.BuildPlan{
+					PlanSections: dataformat.PlanSections{
+						Provides: []dataformat.Provide{
 							{Name: "dep1"},
 						},
-						Requires: []buildpack.Require{
+						Requires: []dataformat.Require{
 							{Name: "dep1"},
 						},
 					},
 				},
 			})
 			detectRuns.Store("B@v1", buildpack.DetectRun{
-				BuildPlan: buildpack.BuildPlan{
-					PlanSections: buildpack.PlanSections{
-						Provides: []buildpack.Provide{
+				BuildPlan: dataformat.BuildPlan{
+					PlanSections: dataformat.PlanSections{
+						Provides: []dataformat.Provide{
 							{Name: "dep1"},
 						},
 					},
 				},
 			})
 			detectRuns.Store("C@v1", buildpack.DetectRun{
-				BuildPlan: buildpack.BuildPlan{
-					PlanSections: buildpack.PlanSections{
-						Requires: []buildpack.Require{
+				BuildPlan: dataformat.BuildPlan{
+					PlanSections: dataformat.PlanSections{
+						Requires: []dataformat.Require{
 							{Name: "dep1"},
 						},
 					},
@@ -977,30 +979,30 @@ func testDetector(t *testing.T, when spec.G, it spec.S) {
 
 			detectRuns := &sync.Map{}
 			detectRuns.Store("A@v1", buildpack.DetectRun{
-				BuildPlan: buildpack.BuildPlan{
-					PlanSections: buildpack.PlanSections{
-						Requires: []buildpack.Require{
+				BuildPlan: dataformat.BuildPlan{
+					PlanSections: dataformat.PlanSections{
+						Requires: []dataformat.Require{
 							{Name: "dep-missing"},
 						},
 					},
 				},
 			})
 			detectRuns.Store("B@v1", buildpack.DetectRun{
-				BuildPlan: buildpack.BuildPlan{
-					PlanSections: buildpack.PlanSections{
-						Provides: []buildpack.Provide{
+				BuildPlan: dataformat.BuildPlan{
+					PlanSections: dataformat.PlanSections{
+						Provides: []dataformat.Provide{
 							{Name: "dep-present"},
 						},
-						Requires: []buildpack.Require{
+						Requires: []dataformat.Require{
 							{Name: "dep-present"},
 						},
 					},
 				},
 			})
 			detectRuns.Store("C@v1", buildpack.DetectRun{
-				BuildPlan: buildpack.BuildPlan{
-					PlanSections: buildpack.PlanSections{
-						Provides: []buildpack.Provide{
+				BuildPlan: dataformat.BuildPlan{
+					PlanSections: dataformat.PlanSections{
+						Provides: []dataformat.Provide{
 							{Name: "dep-missing"},
 						},
 					},
@@ -1021,7 +1023,7 @@ func testDetector(t *testing.T, when spec.G, it spec.S) {
 			if !hasEntries(entries, []platform.BuildPlanEntry{
 				{
 					Providers: []buildpack.GroupBuildpack{{ID: "B", Version: "v1"}},
-					Requires:  []buildpack.Require{{Name: "dep-present"}},
+					Requires:  []dataformat.Require{{Name: "dep-present"}},
 				},
 			}) {
 				t.Fatalf("Unexpected entries:\n%+v\n", entries)
@@ -1052,15 +1054,15 @@ func testDetector(t *testing.T, when spec.G, it spec.S) {
 
 			detectRuns := &sync.Map{}
 			detectRuns.Store("A@v1", buildpack.DetectRun{
-				BuildPlan: buildpack.BuildPlan{
-					PlanSections: buildpack.PlanSections{
-						Provides: []buildpack.Provide{
+				BuildPlan: dataformat.BuildPlan{
+					PlanSections: dataformat.PlanSections{
+						Provides: []dataformat.Provide{
 							{Name: "dep2-missing"},
 						},
 					},
-					Or: []buildpack.PlanSections{
+					Or: []dataformat.PlanSections{
 						{
-							Provides: []buildpack.Provide{
+							Provides: []dataformat.Provide{
 								{Name: "dep1-present"},
 							},
 						},
@@ -1068,15 +1070,15 @@ func testDetector(t *testing.T, when spec.G, it spec.S) {
 				},
 			})
 			detectRuns.Store("B@v1", buildpack.DetectRun{
-				BuildPlan: buildpack.BuildPlan{
-					PlanSections: buildpack.PlanSections{
-						Requires: []buildpack.Require{
+				BuildPlan: dataformat.BuildPlan{
+					PlanSections: dataformat.PlanSections{
+						Requires: []dataformat.Require{
 							{Name: "dep3-missing"},
 						},
 					},
-					Or: []buildpack.PlanSections{
+					Or: []dataformat.PlanSections{
 						{
-							Requires: []buildpack.Require{
+							Requires: []dataformat.Require{
 								{Name: "dep1-present"},
 							},
 						},
@@ -1084,21 +1086,21 @@ func testDetector(t *testing.T, when spec.G, it spec.S) {
 				},
 			})
 			detectRuns.Store("C@v1", buildpack.DetectRun{
-				BuildPlan: buildpack.BuildPlan{
-					PlanSections: buildpack.PlanSections{
-						Provides: []buildpack.Provide{
+				BuildPlan: dataformat.BuildPlan{
+					PlanSections: dataformat.PlanSections{
+						Provides: []dataformat.Provide{
 							{Name: "dep5-missing"},
 						},
-						Requires: []buildpack.Require{
+						Requires: []dataformat.Require{
 							{Name: "dep4-missing"},
 						},
 					},
-					Or: []buildpack.PlanSections{
+					Or: []dataformat.PlanSections{
 						{
-							Provides: []buildpack.Provide{
+							Provides: []dataformat.Provide{
 								{Name: "dep6-present"},
 							},
-							Requires: []buildpack.Require{
+							Requires: []dataformat.Require{
 								{Name: "dep6-present"},
 							},
 						},
@@ -1106,21 +1108,21 @@ func testDetector(t *testing.T, when spec.G, it spec.S) {
 				},
 			})
 			detectRuns.Store("D@v1", buildpack.DetectRun{
-				BuildPlan: buildpack.BuildPlan{
-					PlanSections: buildpack.PlanSections{
-						Provides: []buildpack.Provide{
+				BuildPlan: dataformat.BuildPlan{
+					PlanSections: dataformat.PlanSections{
+						Provides: []dataformat.Provide{
 							{Name: "dep8-missing"},
 						},
-						Requires: []buildpack.Require{
+						Requires: []dataformat.Require{
 							{Name: "dep7-missing"},
 						},
 					},
-					Or: []buildpack.PlanSections{
+					Or: []dataformat.PlanSections{
 						{
-							Provides: []buildpack.Provide{
+							Provides: []dataformat.Provide{
 								{Name: "dep10-missing"},
 							},
-							Requires: []buildpack.Require{
+							Requires: []dataformat.Require{
 								{Name: "dep9-missing"},
 							},
 						},
@@ -1144,11 +1146,11 @@ func testDetector(t *testing.T, when spec.G, it spec.S) {
 			if !hasEntries(entries, []platform.BuildPlanEntry{
 				{
 					Providers: []buildpack.GroupBuildpack{{ID: "A", Version: "v1"}},
-					Requires:  []buildpack.Require{{Name: "dep1-present"}},
+					Requires:  []dataformat.Require{{Name: "dep1-present"}},
 				},
 				{
 					Providers: []buildpack.GroupBuildpack{{ID: "C", Version: "v1"}},
-					Requires:  []buildpack.Require{{Name: "dep6-present"}},
+					Requires:  []dataformat.Require{{Name: "dep6-present"}},
 				},
 			}) {
 				t.Fatalf("Unexpected entries:\n%+v\n", entries)

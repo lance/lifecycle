@@ -8,6 +8,9 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/buildpacks/lifecycle/buildpack/common"
+	"github.com/buildpacks/lifecycle/buildpack/dataformat"
+
 	"github.com/BurntSushi/toml"
 	"github.com/pkg/errors"
 
@@ -16,24 +19,10 @@ import (
 
 const EnvBuildpackDir = "CNB_BUILDPACK_DIR"
 
-type Logger interface {
-	Debug(msg string)
-	Debugf(fmt string, v ...interface{})
-
-	Info(msg string)
-	Infof(fmt string, v ...interface{})
-
-	Warn(msg string)
-	Warnf(fmt string, v ...interface{})
-
-	Error(msg string)
-	Errorf(fmt string, v ...interface{})
-}
-
 type DetectConfig struct {
 	AppDir      string
 	PlatformDir string
-	Logger      Logger
+	Logger      common.Logger
 }
 
 func (b *Descriptor) Detect(config *DetectConfig, bpEnv BuildEnv) DetectRun {
@@ -89,19 +78,19 @@ func (b *Descriptor) Detect(config *DetectConfig, bpEnv BuildEnv) DetectRun {
 		return DetectRun{Code: -1, Err: err, Output: out.Bytes()}
 	}
 	if api.MustParse(b.API).Equal(api.MustParse("0.2")) {
-		if t.hasInconsistentVersions() || t.Or.hasInconsistentVersions() {
+		if t.HasInconsistentVersions() || t.Or.HasInconsistentVersions() {
 			t.Err = errors.Errorf(`buildpack %s has a "version" key that does not match "metadata.version"`, b.Buildpack.ID)
 			t.Code = -1
 		}
 	}
 	if api.MustParse(b.API).AtLeast("0.3") {
-		if t.hasDoublySpecifiedVersions() || t.Or.hasDoublySpecifiedVersions() {
+		if t.HasDoublySpecifiedVersions() || t.Or.HasDoublySpecifiedVersions() {
 			t.Err = errors.Errorf(`buildpack %s has a "version" key and a "metadata.version" which cannot be specified together. "metadata.version" should be used instead`, b.Buildpack.ID)
 			t.Code = -1
 		}
 	}
 	if api.MustParse(b.API).AtLeast("0.3") {
-		if t.hasTopLevelVersions() || t.Or.hasTopLevelVersions() {
+		if t.HasTopLevelVersions() || t.Or.HasTopLevelVersions() {
 			config.Logger.Warnf(`Warning: buildpack %s has a "version" key. This key is deprecated in build plan requirements in buildpack API 0.3. "metadata.version" should be used instead`, b.Buildpack.ID)
 		}
 	}
@@ -110,7 +99,7 @@ func (b *Descriptor) Detect(config *DetectConfig, bpEnv BuildEnv) DetectRun {
 }
 
 type DetectRun struct {
-	BuildPlan
+	dataformat.BuildPlan
 	Output []byte `toml:"-"`
 	Code   int    `toml:"-"`
 	Err    error  `toml:"-"`

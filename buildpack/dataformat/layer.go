@@ -1,4 +1,4 @@
-package layertypes
+package dataformat
 
 type LayerMetadataFile struct {
 	Data   interface{} `json:"data" toml:"metadata"`

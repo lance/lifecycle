@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/buildpacks/lifecycle/buildpack/dataformat"
+
 	"github.com/BurntSushi/toml"
 	"github.com/buildpacks/imgutil"
 	"github.com/pkg/errors"
@@ -456,7 +458,7 @@ func (e *Exporter) makeBuildReport(layersDir string) (platform.BuildReport, erro
 	if e.PlatformAPI.LessThan("0.5") {
 		return platform.BuildReport{}, nil
 	}
-	var out []buildpack.BOMEntry
+	var out []dataformat.BOMEntry
 	for _, bp := range e.Buildpacks {
 		if api.MustParse(bp.API).LessThan("0.5") {
 			continue

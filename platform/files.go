@@ -6,8 +6,9 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/pkg/errors"
 
+	"github.com/buildpacks/lifecycle/buildpack/dataformat"
+
 	"github.com/buildpacks/lifecycle/buildpack"
-	"github.com/buildpacks/lifecycle/buildpack/layertypes"
 	"github.com/buildpacks/lifecycle/launch"
 	"github.com/buildpacks/lifecycle/layers"
 )
@@ -66,12 +67,12 @@ type BuildpackLayersMetadata struct {
 	ID      string                            `json:"key" toml:"key"`
 	Version string                            `json:"version" toml:"version"`
 	Layers  map[string]BuildpackLayerMetadata `json:"layers" toml:"layers"`
-	Store   *buildpack.StoreTOML              `json:"store,omitempty" toml:"store"`
+	Store   *dataformat.StoreTOML             `json:"store,omitempty" toml:"store"`
 }
 
 type BuildpackLayerMetadata struct {
 	LayerMetadata
-	layertypes.LayerMetadataFile
+	dataformat.LayerMetadataFile
 }
 
 type RunImageMetadata struct {
@@ -82,9 +83,9 @@ type RunImageMetadata struct {
 // metadata.toml
 
 type BuildMetadata struct {
-	BOM                         []buildpack.BOMEntry       `toml:"bom" json:"bom"`
+	BOM                         []dataformat.BOMEntry      `toml:"bom" json:"bom"`
 	Buildpacks                  []buildpack.GroupBuildpack `toml:"buildpacks" json:"buildpacks"`
-	Labels                      []buildpack.Label          `toml:"labels" json:"-"`
+	Labels                      []dataformat.Label         `toml:"labels" json:"-"`
 	Launcher                    LauncherMetadata           `toml:"-" json:"launcher"`
 	Processes                   []launch.Process           `toml:"processes" json:"processes"`
 	Slices                      []layers.Slice             `toml:"slices" json:"-"`
@@ -124,8 +125,8 @@ type BuildPlan struct {
 	Entries []BuildPlanEntry `toml:"entries"`
 }
 
-func (p BuildPlan) Find(bpID string) buildpack.Plan {
-	var out []buildpack.Require
+func (p BuildPlan) Find(bpID string) dataformat.Plan {
+	var out []dataformat.Require
 	for _, entry := range p.Entries {
 		for _, provider := range entry.Providers {
 			if provider.ID == bpID {
@@ -134,7 +135,7 @@ func (p BuildPlan) Find(bpID string) buildpack.Plan {
 			}
 		}
 	}
-	return buildpack.Plan{Entries: out}
+	return dataformat.Plan{Entries: out}
 }
 
 // TODO: ensure at least one claimed entry of each name is provided by the BP
@@ -161,7 +162,7 @@ func containsEntry(metRequires []string, entry BuildPlanEntry) bool {
 
 type BuildPlanEntry struct {
 	Providers []buildpack.GroupBuildpack `toml:"providers"`
-	Requires  []buildpack.Require        `toml:"requires"`
+	Requires  []dataformat.Require       `toml:"requires"`
 }
 
 func (be BuildPlanEntry) NoOpt() BuildPlanEntry {
@@ -193,7 +194,7 @@ type ExportReport struct {
 }
 
 type BuildReport struct {
-	BOM []buildpack.BOMEntry `toml:"bom"`
+	BOM []dataformat.BOMEntry `toml:"bom"`
 }
 
 type ImageReport struct {

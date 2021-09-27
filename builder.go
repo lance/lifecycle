@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"sort"
 
+	"github.com/buildpacks/lifecycle/buildpack/dataformat"
+
 	"github.com/buildpacks/lifecycle/api"
 	"github.com/buildpacks/lifecycle/buildpack"
 	"github.com/buildpacks/lifecycle/env"
@@ -27,7 +29,7 @@ type BuildpackStore interface {
 }
 
 type Buildpack interface {
-	Build(bpPlan buildpack.Plan, config buildpack.BuildConfig, bpEnv buildpack.BuildEnv) (buildpack.BuildResult, error)
+	Build(bpPlan dataformat.Plan, config buildpack.BuildConfig, bpEnv buildpack.BuildEnv) (buildpack.BuildResult, error)
 	ConfigFile() *buildpack.Descriptor
 	Detect(config *buildpack.DetectConfig, bpEnv buildpack.BuildEnv) buildpack.DetectRun
 }
@@ -55,9 +57,9 @@ func (b *Builder) Build() (*platform.BuildMetadata, error) {
 
 	processMap := newProcessMap()
 	plan := b.Plan
-	var bom []buildpack.BOMEntry
+	var bom []dataformat.BOMEntry
 	var slices []layers.Slice
-	var labels []buildpack.Label
+	var labels []dataformat.Label
 
 	bpEnv := env.NewBuildEnv(os.Environ())
 

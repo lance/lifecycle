@@ -5,6 +5,8 @@ import (
 	"os"
 	"sync"
 
+	"github.com/buildpacks/lifecycle/buildpack/dataformat"
+
 	"github.com/pkg/errors"
 
 	"github.com/buildpacks/lifecycle/buildpack"
@@ -299,7 +301,7 @@ type detectResult struct {
 
 func (r *detectResult) options() []detectOption {
 	var out []detectOption
-	for i, sections := range append([]buildpack.PlanSections{r.PlanSections}, r.Or...) {
+	for i, sections := range append([]dataformat.PlanSections{r.PlanSections}, r.Or...) {
 		bp := r.GroupBuildpack
 		bp.Optional = bp.Optional && i == len(r.Or)
 		out = append(out, detectOption{bp, sections})
@@ -333,7 +335,7 @@ func (rs detectResults) runTrialsFrom(prefix detectTrial, f trialFunc) (depMap, 
 
 type detectOption struct {
 	buildpack.GroupBuildpack
-	buildpack.PlanSections
+	dataformat.PlanSections
 }
 
 type detectTrial []detectOption
@@ -369,13 +371,13 @@ func newDepMap(trial detectTrial) depMap {
 	return m
 }
 
-func (m depMap) provide(bp buildpack.GroupBuildpack, provide buildpack.Provide) {
+func (m depMap) provide(bp buildpack.GroupBuildpack, provide dataformat.Provide) {
 	entry := m[provide.Name]
 	entry.extraProvides = append(entry.extraProvides, bp)
 	m[provide.Name] = entry
 }
 
-func (m depMap) require(bp buildpack.GroupBuildpack, require buildpack.Require) {
+func (m depMap) require(bp buildpack.GroupBuildpack, require dataformat.Require) {
 	entry := m[require.Name]
 	entry.Providers = append(entry.Providers, entry.extraProvides...)
 	entry.extraProvides = nil

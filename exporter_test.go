@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/buildpacks/lifecycle/buildpack/dataformat"
+
 	"github.com/apex/log"
 	"github.com/apex/log/handlers/memory"
 	"github.com/buildpacks/imgutil/fakes"
@@ -911,7 +913,7 @@ version = "4.5.6"
 						t.Fatalf("badly formatted metadata: %s", err)
 					}
 
-					h.AssertEq(t, meta.Buildpacks[0].Store, &buildpack.StoreTOML{Data: map[string]interface{}{
+					h.AssertEq(t, meta.Buildpacks[0].Store, &dataformat.StoreTOML{Data: map[string]interface{}{
 						"key": "val",
 					}})
 				})
@@ -1251,16 +1253,16 @@ version = "4.5.6"
 						report, err := exporter.Export(opts)
 						h.AssertNil(t, err)
 
-						h.AssertEq(t, report.Build.BOM, []buildpack.BOMEntry{
+						h.AssertEq(t, report.Build.BOM, []dataformat.BOMEntry{
 							{
-								Require: buildpack.Require{
+								Require: dataformat.Require{
 									Name:     "dep1",
 									Metadata: map[string]interface{}{"version": string("v1")},
 								},
 								Buildpack: buildpack.GroupBuildpack{ID: "buildpack.id", Version: "1.2.3"},
 							},
 							{
-								Require: buildpack.Require{
+								Require: dataformat.Require{
 									Name:     "dep2",
 									Metadata: map[string]interface{}{"version": string("v1")},
 								},

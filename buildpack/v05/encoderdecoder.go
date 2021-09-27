@@ -6,7 +6,7 @@ import (
 	"github.com/BurntSushi/toml"
 
 	"github.com/buildpacks/lifecycle/api"
-	"github.com/buildpacks/lifecycle/buildpack/layertypes"
+	"github.com/buildpacks/lifecycle/buildpack/dataformat"
 )
 
 type EncoderDecoder05 struct {
@@ -20,15 +20,15 @@ func (d *EncoderDecoder05) IsSupported(buildpackAPI string) bool {
 	return api.MustParse(buildpackAPI).LessThan("0.6")
 }
 
-func (d *EncoderDecoder05) Encode(file *os.File, lmf layertypes.LayerMetadataFile) error {
+func (d *EncoderDecoder05) Encode(file *os.File, lmf dataformat.LayerMetadataFile) error {
 	return toml.NewEncoder(file).Encode(lmf)
 }
 
-func (d *EncoderDecoder05) Decode(path string) (layertypes.LayerMetadataFile, string, error) {
-	var lmf layertypes.LayerMetadataFile
+func (d *EncoderDecoder05) Decode(path string) (dataformat.LayerMetadataFile, string, error) {
+	var lmf dataformat.LayerMetadataFile
 	md, err := toml.DecodeFile(path, &lmf)
 	if err != nil {
-		return layertypes.LayerMetadataFile{}, "", err
+		return dataformat.LayerMetadataFile{}, "", err
 	}
 	msg := ""
 	if isWrongFormat := typesInTypesTable(md); isWrongFormat {

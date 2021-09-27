@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/buildpacks/lifecycle/buildpack/dataformat"
+
 	"github.com/apex/log"
 	"github.com/apex/log/handlers/memory"
 	"github.com/golang/mock/gomock"
@@ -107,7 +109,7 @@ func testBuilder(t *testing.T, when spec.G, it spec.S) {
 								{ID: "A", Version: "v1"},
 								{ID: "B", Version: "v2"},
 							},
-							Requires: []buildpack.Require{
+							Requires: []dataformat.Require{
 								{Name: "some-dep", Version: "v1"}, // not provided to buildpack B because it is met
 							},
 						},
@@ -116,7 +118,7 @@ func testBuilder(t *testing.T, when spec.G, it spec.S) {
 								{ID: "A", Version: "v1"},
 								{ID: "B", Version: "v2"},
 							},
-							Requires: []buildpack.Require{
+							Requires: []dataformat.Require{
 								{Name: "some-unmet-dep", Version: "v2"}, // provided to buildpack B because it is unmet
 							},
 						},
@@ -124,7 +126,7 @@ func testBuilder(t *testing.T, when spec.G, it spec.S) {
 							Providers: []buildpack.GroupBuildpack{
 								{ID: "B", Version: "v2"},
 							},
-							Requires: []buildpack.Require{
+							Requires: []dataformat.Require{
 								{Name: "other-dep", Version: "v4"}, // only provided to buildpack B
 							},
 						},
@@ -133,7 +135,7 @@ func testBuilder(t *testing.T, when spec.G, it spec.S) {
 				bpA := testmock.NewMockBuildpack(mockCtrl)
 				bpB := testmock.NewMockBuildpack(mockCtrl)
 				buildpackStore.EXPECT().Lookup("A", "v1").Return(bpA, nil)
-				expectedPlanA := buildpack.Plan{Entries: []buildpack.Require{
+				expectedPlanA := dataformat.Plan{Entries: []dataformat.Require{
 					{Name: "some-dep", Version: "v1"},
 					{Name: "some-unmet-dep", Version: "v2"},
 				}}
@@ -141,7 +143,7 @@ func testBuilder(t *testing.T, when spec.G, it spec.S) {
 					MetRequires: []string{"some-dep"},
 				}, nil)
 				buildpackStore.EXPECT().Lookup("B", "v2").Return(bpB, nil)
-				expectedPlanB := buildpack.Plan{Entries: []buildpack.Require{
+				expectedPlanB := dataformat.Plan{Entries: []dataformat.Require{
 					{Name: "some-unmet-dep", Version: "v2"},
 					{Name: "other-dep", Version: "v4"},
 				}}
@@ -179,9 +181,9 @@ func testBuilder(t *testing.T, when spec.G, it spec.S) {
 						bpA := testmock.NewMockBuildpack(mockCtrl)
 						buildpackStore.EXPECT().Lookup("A", "v1").Return(bpA, nil)
 						bpA.EXPECT().Build(gomock.Any(), config, gomock.Any()).Return(buildpack.BuildResult{
-							BOM: []buildpack.BOMEntry{
+							BOM: []dataformat.BOMEntry{
 								{
-									Require: buildpack.Require{
+									Require: dataformat.Require{
 										Name:     "dep1",
 										Metadata: map[string]interface{}{"version": "v1"},
 									},
@@ -192,9 +194,9 @@ func testBuilder(t *testing.T, when spec.G, it spec.S) {
 						bpB := testmock.NewMockBuildpack(mockCtrl)
 						buildpackStore.EXPECT().Lookup("B", "v2").Return(bpB, nil)
 						bpB.EXPECT().Build(gomock.Any(), config, gomock.Any()).Return(buildpack.BuildResult{
-							BOM: []buildpack.BOMEntry{
+							BOM: []dataformat.BOMEntry{
 								{
-									Require: buildpack.Require{
+									Require: dataformat.Require{
 										Name:     "dep2",
 										Metadata: map[string]interface{}{"version": "v1"},
 									},
@@ -207,9 +209,9 @@ func testBuilder(t *testing.T, when spec.G, it spec.S) {
 						if err != nil {
 							t.Fatalf("Unexpected error:\n%s\n", err)
 						}
-						if s := cmp.Diff(metadata.BOM, []buildpack.BOMEntry{
+						if s := cmp.Diff(metadata.BOM, []dataformat.BOMEntry{
 							{
-								Require: buildpack.Require{
+								Require: dataformat.Require{
 									Name:     "dep1",
 									Version:  "",
 									Metadata: map[string]interface{}{"version": string("v1")},
@@ -217,7 +219,7 @@ func testBuilder(t *testing.T, when spec.G, it spec.S) {
 								Buildpack: buildpack.GroupBuildpack{ID: "A", Version: "v1"},
 							},
 							{
-								Require: buildpack.Require{
+								Require: dataformat.Require{
 									Name:     "dep2",
 									Version:  "",
 									Metadata: map[string]interface{}{"version": string("v1")},
@@ -257,7 +259,7 @@ func testBuilder(t *testing.T, when spec.G, it spec.S) {
 						bpA := testmock.NewMockBuildpack(mockCtrl)
 						buildpackStore.EXPECT().Lookup("A", "v1").Return(bpA, nil)
 						bpA.EXPECT().Build(gomock.Any(), config, gomock.Any()).Return(buildpack.BuildResult{
-							Labels: []buildpack.Label{
+							Labels: []dataformat.Label{
 								{Key: "some-bpA-key", Value: "some-bpA-value"},
 								{Key: "some-other-bpA-key", Value: "some-other-bpA-value"},
 							},
@@ -265,7 +267,7 @@ func testBuilder(t *testing.T, when spec.G, it spec.S) {
 						bpB := testmock.NewMockBuildpack(mockCtrl)
 						buildpackStore.EXPECT().Lookup("B", "v2").Return(bpB, nil)
 						bpB.EXPECT().Build(gomock.Any(), config, gomock.Any()).Return(buildpack.BuildResult{
-							Labels: []buildpack.Label{
+							Labels: []dataformat.Label{
 								{Key: "some-bpB-key", Value: "some-bpB-value"},
 								{Key: "some-other-bpB-key", Value: "some-other-bpB-value"},
 							},
@@ -275,7 +277,7 @@ func testBuilder(t *testing.T, when spec.G, it spec.S) {
 						if err != nil {
 							t.Fatalf("Unexpected error:\n%s\n", err)
 						}
-						if s := cmp.Diff(metadata.Labels, []buildpack.Label{
+						if s := cmp.Diff(metadata.Labels, []dataformat.Label{
 							{Key: "some-bpA-key", Value: "some-bpA-value"},
 							{Key: "some-other-bpA-key", Value: "some-other-bpA-value"},
 							{Key: "some-bpB-key", Value: "some-bpB-value"},
@@ -710,9 +712,9 @@ func testBuilder(t *testing.T, when spec.G, it spec.S) {
 						bpA := testmock.NewMockBuildpack(mockCtrl)
 						buildpackStore.EXPECT().Lookup("A", "v1").Return(bpA, nil)
 						bpA.EXPECT().Build(gomock.Any(), config, gomock.Any()).Return(buildpack.BuildResult{
-							BOM: []buildpack.BOMEntry{
+							BOM: []dataformat.BOMEntry{
 								{
-									Require: buildpack.Require{
+									Require: dataformat.Require{
 										Name:     "dep1",
 										Metadata: map[string]interface{}{"version": string("v1")},
 									},
@@ -729,9 +731,9 @@ func testBuilder(t *testing.T, when spec.G, it spec.S) {
 							t.Fatalf("Unexpected error:\n%s\n", err)
 						}
 
-						if s := cmp.Diff(metadata.BOM, []buildpack.BOMEntry{
+						if s := cmp.Diff(metadata.BOM, []dataformat.BOMEntry{
 							{
-								Require: buildpack.Require{
+								Require: dataformat.Require{
 									Name:     "dep1",
 									Version:  "v1",
 									Metadata: map[string]interface{}{"version": string("v1")},
@@ -846,7 +848,7 @@ func testBuilder(t *testing.T, when spec.G, it spec.S) {
 
 type fakeBp struct{}
 
-func (b *fakeBp) Build(bpPlan buildpack.Plan, config buildpack.BuildConfig, bpEnv buildpack.BuildEnv) (buildpack.BuildResult, error) {
+func (b *fakeBp) Build(bpPlan dataformat.Plan, config buildpack.BuildConfig, bpEnv buildpack.BuildEnv) (buildpack.BuildResult, error) {
 	providedEnv, ok := bpEnv.(*env.Env)
 	if !ok {
 		return buildpack.BuildResult{}, errors.New("failed to cast bpEnv")

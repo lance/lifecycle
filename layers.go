@@ -8,12 +8,13 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/buildpacks/lifecycle/buildpack/dataformat"
+
 	"github.com/BurntSushi/toml"
 	"github.com/pkg/errors"
 
 	"github.com/buildpacks/lifecycle/api"
 	"github.com/buildpacks/lifecycle/buildpack"
-	"github.com/buildpacks/lifecycle/buildpack/layertypes"
 	"github.com/buildpacks/lifecycle/launch"
 	"github.com/buildpacks/lifecycle/platform"
 )
@@ -23,7 +24,7 @@ type bpLayersDir struct {
 	layers    []bpLayer
 	name      string
 	buildpack buildpack.GroupBuildpack
-	store     *buildpack.StoreTOML
+	store     *dataformat.StoreTOML
 }
 
 func readBuildpackLayersDir(layersDir string, bp buildpack.GroupBuildpack, logger Logger) (bpLayersDir, error) {
@@ -58,7 +59,7 @@ func readBuildpackLayersDir(layersDir string, bp buildpack.GroupBuildpack, logge
 	for _, tf := range tomls {
 		name := strings.TrimSuffix(filepath.Base(tf), ".toml")
 		if name == "store" {
-			var bpStore buildpack.StoreTOML
+			var bpStore dataformat.StoreTOML
 			_, err := toml.DecodeFile(tf, &bpStore)
 			if err != nil {
 				return bpLayersDir{}, errors.Wrapf(err, "failed decoding store.toml for buildpack %q", bp.ID)
@@ -163,7 +164,7 @@ func (bp *bpLayer) remove() error {
 	return nil
 }
 
-func (bp *bpLayer) writeMetadata(metadata layertypes.LayerMetadataFile) error {
+func (bp *bpLayer) writeMetadata(metadata dataformat.LayerMetadataFile) error {
 	path := filepath.Join(bp.path + ".toml")
 	if err := os.MkdirAll(filepath.Dir(path), 0777); err != nil {
 		return err

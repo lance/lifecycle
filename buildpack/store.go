@@ -3,13 +3,15 @@ package buildpack
 import (
 	"path/filepath"
 
+	"github.com/buildpacks/lifecycle/buildpack/dataformat"
+
 	"github.com/BurntSushi/toml"
 
 	"github.com/buildpacks/lifecycle/launch"
 )
 
 type Buildpack interface {
-	Build(bpPlan Plan, config BuildConfig, bpEnv BuildEnv) (BuildResult, error)
+	Build(bpPlan dataformat.Plan, config BuildConfig, bpEnv BuildEnv) (BuildResult, error)
 	ConfigFile() *Descriptor
 	Detect(config *DetectConfig, bpEnv BuildEnv) DetectRun
 }
