@@ -5,11 +5,15 @@ import (
 	"fmt"
 
 	"github.com/BurntSushi/toml"
+	"github.com/buildpacks/imgutil"
+	"github.com/buildpacks/imgutil/local"
+	"github.com/docker/docker/client"
 	"github.com/google/go-containerregistry/pkg/authn"
 
 	"github.com/buildpacks/lifecycle"
 	"github.com/buildpacks/lifecycle/auth"
 	"github.com/buildpacks/lifecycle/buildpack"
+	"github.com/buildpacks/lifecycle/cache"
 	"github.com/buildpacks/lifecycle/cmd"
 	"github.com/buildpacks/lifecycle/internal/layer"
 	"github.com/buildpacks/lifecycle/platform"
@@ -17,23 +21,24 @@ import (
 )
 
 type restoreCmd struct {
-	// flags: inputs
+	restoreArgs
 	analyzedPath  string
 	cacheDir      string
 	cacheImageTag string
 	groupPath     string
 	uid, gid      int
-
-	restoreArgs
 }
 
+// restoreArgs contains inputs needed when run by creator.
 type restoreArgs struct {
-	layersDir  string
-	platform   Platform
-	skipLayers bool
+	launchCacheDir string
+	layersDir      string
+	platform       Platform
+	skipLayers     bool
+	useDaemon      bool
 
-	// construct if necessary before dropping privileges
-	keychain authn.Keychain
+	docker   client.CommonAPIClient // construct if necessary before dropping privileges
+	keychain authn.Keychain         // construct if necessary before dropping privileges
 }
 
 // DefineFlags defines the flags that are considered valid and reads their values (if provided).
@@ -48,6 +53,10 @@ func (r *restoreCmd) DefineFlags() {
 		cmd.FlagAnalyzedPath(&r.analyzedPath)
 		cmd.FlagSkipLayers(&r.skipLayers)
 	}
+	if r.restoresAppSBOM() {
+		cmd.FlagUseDaemon(&r.useDaemon)
+		cmd.FlagLaunchCacheDir(&r.launchCacheDir)
+	}
 }
 
 // Args validates arguments and flags, and fills in default values.
@@ -55,6 +64,7 @@ func (r *restoreCmd) Args(nargs int, args []string) error {
 	if nargs > 0 {
 		return cmd.FailErrCode(errors.New("received unexpected Args"), cmd.CodeInvalidArgs, "parse arguments")
 	}
+
 	if r.cacheImageTag == "" && r.cacheDir == "" {
 		cmd.DefaultLogger.Warn("Not restoring cached layer data, no cache flag specified.")
 	}
@@ -99,15 +109,16 @@ func (r *restoreCmd) Exec() error {
 		return err
 	}
 
-	var appMeta platform.LayersMetadata
+	var analyzedMD platform.AnalyzedMetadata
 	if r.restoresLayerMetadata() {
-		var analyzedMd platform.AnalyzedMetadata
-		if _, err := toml.DecodeFile(r.analyzedPath, &analyzedMd); err == nil {
-			appMeta = analyzedMd.Metadata
+		_, err = toml.DecodeFile(r.analyzedPath, &analyzedMD)
+		if err != nil {
+			cmd.DefaultLogger.Infof("Error decoding previous image metadata: %s", err.Error()) // TODO: confirm we want to ignore this error
 		}
+		cmd.DefaultLogger.Debugf("Analyzed metadata: %+v", analyzedMD)
 	}
 
-	return r.restore(appMeta, group, cacheStore)
+	return r.restore(analyzedMD, group, cacheStore)
 }
 
 func (r *restoreCmd) registryImages() []string {
@@ -117,14 +128,31 @@ func (r *restoreCmd) registryImages() []string {
 	return []string{}
 }
 
-func (r restoreArgs) restore(layerMetadata platform.LayersMetadata, group buildpack.Group, cacheStore lifecycle.Cache) error {
+func (r restoreArgs) restoresAppSBOM() bool {
+	return r.platform.API().AtLeast("0.9")
+}
+
+func (r restoreArgs) restore(analyzedMD platform.AnalyzedMetadata, group buildpack.Group, cacheStore lifecycle.Cache) error {
+	var previousImage imgutil.Image
+	if r.restoresAppSBOM() && analyzedMD.PreviousImage != nil && analyzedMD.PreviousImage.Reference != "" { // TODO: put in helper function maybe
+		var err error
+		if r.useDaemon {
+			previousImage, err = r.initDaemonAppImage(analyzedMD)
+			if err != nil {
+				return cmd.FailErrCode(err, r.platform.CodeFor(platform.RestoreError), "initialize previous image")
+			}
+		} else {
+			fmt.Println("TODO") // TODO
+		}
+	}
 	restorer := &lifecycle.Restorer{
-		LayersDir:             r.layersDir,
 		Buildpacks:            group.Group,
+		LayerMetadataRestorer: layer.NewMetadataRestorer(cmd.DefaultLogger, r.layersDir, r.skipLayers),
+		LayersDir:             r.layersDir,
+		LayersMetadata:        analyzedMD.Metadata,
 		Logger:                cmd.DefaultLogger,
 		Platform:              r.platform,
-		LayerMetadataRestorer: layer.NewMetadataRestorer(cmd.DefaultLogger, r.layersDir, r.skipLayers),
-		LayersMetadata:        layerMetadata,
+		PreviousImage:         previousImage,
 		SBOMRestorer:          layer.NewSBOMRestorer(r.layersDir, cmd.DefaultLogger),
 	}
 
@@ -132,6 +160,36 @@ func (r restoreArgs) restore(layerMetadata platform.LayersMetadata, group buildp
 		return cmd.FailErrCode(err, r.platform.CodeFor(platform.RestoreError), "restore")
 	}
 	return nil
+}
+
+func (r restoreArgs) initDaemonAppImage(analyzedMD platform.AnalyzedMetadata) (imgutil.Image, error) {
+	var opts = []local.ImageOption{
+		local.FromBaseImage(analyzedMD.RunImage.Reference), // TODO: pick up here by inserting a valid run image into the fixture
+	}
+
+	if analyzedMD.PreviousImage != nil {
+		cmd.DefaultLogger.Debugf("Reusing layers from image with id '%s'", analyzedMD.PreviousImage.Reference)
+		opts = append(opts, local.WithPreviousImage(analyzedMD.PreviousImage.Reference))
+	}
+
+	var previousImage imgutil.Image
+	previousImage, err := local.NewImage(
+		"previous-image", // TODO
+		r.docker,
+		opts...,
+	)
+	if err != nil {
+		return nil, cmd.FailErr(err, " image")
+	}
+
+	if r.launchCacheDir != "" {
+		volumeCache, err := cache.NewVolumeCache(r.launchCacheDir)
+		if err != nil {
+			return nil, cmd.FailErr(err, "create launch cache")
+		}
+		previousImage = cache.NewCachingImage(previousImage, volumeCache)
+	}
+	return previousImage, nil
 }
 
 func (r *restoreArgs) restoresLayerMetadata() bool {

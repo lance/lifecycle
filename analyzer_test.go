@@ -141,7 +141,7 @@ func testAnalyzerBuilder(platformAPI string) func(t *testing.T, when spec.G, it 
 					h.AssertEq(t, md.Metadata, expectedAppMetadata)
 				})
 
-				when("when there is BOM information", func() {
+				when("sbom", func() {
 					it.Before(func() {
 						h.SkipIf(t, api.MustParse(platformAPI).LessThan("0.8"), "Platform API < 0.8 does not restore sBOM")
 

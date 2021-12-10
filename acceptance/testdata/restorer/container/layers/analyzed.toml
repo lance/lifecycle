@@ -1,6 +1,9 @@
 [image]
 reference = "some-ref"
 
+[metadata.sbom]
+sha = "64cac9eaf0da6a7ae6519b6c7198929f232324e0822b5e359ee0e27104e2d3ed"
+
 [[metadata.buildpacks]]
 key = "some-buildpack-id"
 

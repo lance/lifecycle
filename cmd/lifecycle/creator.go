@@ -232,7 +232,7 @@ func (c *createCmd) Exec() error {
 			layersDir:  c.layersDir,
 			platform:   c.platform,
 			skipLayers: c.skipRestore,
-		}.restore(analyzedMD.Metadata, group, cacheStore)
+		}.restore(analyzedMD, group, cacheStore)
 		if err != nil {
 			return err
 		}

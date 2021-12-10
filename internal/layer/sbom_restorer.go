@@ -48,13 +48,23 @@ func (r *DefaultSBOMRestorer) RestoreFromPrevious(image imgutil.Image, layerDige
 	}
 	r.logger.Debugf("Retrieving previous image sbom layer for %q", layerDigest)
 
+	// extract layer
 	rc, err := image.GetLayer(layerDigest)
 	if err != nil {
 		return err
 	}
 	defer rc.Close()
+	if err := layers.Extract(rc, ""); err != nil {
+		return err
+	}
 
-	return layers.Extract(rc, "")
+	// cache layer
+	rc2, err := image.GetLayer(layerDigest)
+	if err != nil {
+		return err
+	}
+	defer rc2.Close()
+	return image.CacheLayerWithDiffID(rc, layerDigest) // TODO: it might make sense to cache the whole image, so we don't have to download it again during export
 }
 
 func (r *DefaultSBOMRestorer) RestoreFromCache(cache Cache, layerDigest string) error {

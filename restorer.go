@@ -3,6 +3,7 @@ package lifecycle
 import (
 	"path/filepath"
 
+	"github.com/buildpacks/imgutil"
 	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
 
@@ -15,12 +16,13 @@ import (
 
 type Restorer struct {
 	LayersDir string
-	Logger    Logger
 
 	Buildpacks            []buildpack.GroupBuildpack
 	LayerMetadataRestorer layer.MetadataRestorer  // Platform API >= 0.7
 	LayersMetadata        platform.LayersMetadata // Platform API >= 0.7
+	Logger                Logger
 	Platform              Platform
+	PreviousImage         imgutil.Image
 	SBOMRestorer          layer.SBOMRestorer
 }
 
@@ -96,23 +98,39 @@ func (r *Restorer) Restore(cache Cache) error {
 		}
 	}
 
-	if r.Platform.API().AtLeast("0.8") {
-		g.Go(func() error {
-			if cacheMeta.BOM.SHA == "" {
-				return nil
+	g.Go(func() error {
+		if !r.restoresAppSBOM() && !r.restoresCacheSBOM(cacheMeta) {
+			return nil
+		}
+		if r.restoresAppSBOM() {
+			r.Logger.Debugf("Restoring sbom layer from previous image")
+			if err := r.SBOMRestorer.RestoreFromPrevious(r.PreviousImage, r.LayersMetadata.BOM.SHA); err != nil {
+				return err
 			}
+		}
+		if r.restoresCacheSBOM(cacheMeta) {
+			r.Logger.Debugf("Restoring sbom layer from cache")
 			if err := r.SBOMRestorer.RestoreFromCache(cache, cacheMeta.BOM.SHA); err != nil {
 				return err
 			}
-			return r.SBOMRestorer.RestoreToBuildpackLayers(r.Buildpacks)
-		})
-	}
+		}
+		return r.SBOMRestorer.RestoreToBuildpackLayers(r.Buildpacks)
+	})
 
 	if err := g.Wait(); err != nil {
 		return errors.Wrap(err, "restoring data")
 	}
 
 	return nil
+}
+
+func (r *Restorer) restoresAppSBOM() bool {
+	return r.Platform.API().AtLeast("0.9") && r.PreviousImage != nil &&
+		r.LayersMetadata.BOM != nil && r.LayersMetadata.BOM.SHA != ""
+}
+
+func (r *Restorer) restoresCacheSBOM(cacheMeta platform.CacheMetadata) bool {
+	return r.Platform.API().AtLeast("0.8") && cacheMeta.BOM.SHA != ""
 }
 
 func (r *Restorer) restoresLayerMetadata() bool {

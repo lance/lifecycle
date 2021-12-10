@@ -38,6 +38,14 @@ func (c *cachingImage) AddLayer(path string) error {
 	return c.AddLayerWithDiffID(path, diffID)
 }
 
+// TODO: hack, this should be improved
+func (c *cachingImage) CacheLayerWithDiffID(rc io.ReadCloser, diffID string) error {
+	if err := c.cache.AddLayer(rc, diffID); err != nil {
+		return err
+	}
+	return c.cache.Commit()
+}
+
 func (c *cachingImage) AddLayerWithDiffID(path string, diffID string) error {
 	if err := c.cache.AddLayerFile(path, diffID); err != nil {
 		return err

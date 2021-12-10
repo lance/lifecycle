@@ -10,6 +10,9 @@ import (
 
 	"github.com/apex/log"
 	"github.com/apex/log/handlers/memory"
+	"github.com/buildpacks/imgutil"
+	"github.com/buildpacks/imgutil/fakes"
+	"github.com/buildpacks/imgutil/local"
 	"github.com/golang/mock/gomock"
 	"github.com/pkg/errors"
 	"github.com/sclevine/spec"
@@ -638,31 +641,57 @@ func testRestorerBuilder(buildpackAPI, platformAPI string) func(t *testing.T, wh
 				})
 			})
 
-			when("there is a cache with BOM information", func() {
-				var (
-					tmpDir string
-				)
+			when("sbom", func() {
+				when("there is a cache with SBOM information", func() {
+					var (
+						tmpDir string
+					)
 
-				it.Before(func() {
-					h.SkipIf(t, api.MustParse(platformAPI).LessThan("0.8"), "Platform API < 0.8 does not restore sBOM")
+					it.Before(func() {
+						h.SkipIf(t, api.MustParse(platformAPI).LessThan("0.8"), "Platform API < 0.8 does not restore SBOM")
 
-					tmpDir, err := ioutil.TempDir("", "")
-					h.AssertNil(t, err)
-					h.Mkfile(t, "some-data", filepath.Join(tmpDir, "some.tar"))
-					h.AssertNil(t, testCache.AddLayerFile(filepath.Join(tmpDir, "some.tar"), "some-digest"))
-					h.AssertNil(t, testCache.SetMetadata(platform.CacheMetadata{BOM: platform.LayerMetadata{SHA: "some-digest"}}))
-					h.AssertNil(t, testCache.Commit())
+						tmpDir, err := ioutil.TempDir("", "")
+						h.AssertNil(t, err)
+						h.Mkfile(t, "some-data", filepath.Join(tmpDir, "some.tar"))
+						h.AssertNil(t, testCache.AddLayerFile(filepath.Join(tmpDir, "some.tar"), "some-digest"))
+						h.AssertNil(t, testCache.SetMetadata(platform.CacheMetadata{BOM: platform.LayerMetadata{SHA: "some-digest"}}))
+						h.AssertNil(t, testCache.Commit())
+					})
+
+					it.After(func() {
+						h.AssertNil(t, os.RemoveAll(tmpDir))
+					})
+
+					it("restores the SBOM layer from the cache", func() {
+						sbomRestorer.EXPECT().RestoreFromCache(testCache, "some-digest")
+						sbomRestorer.EXPECT().RestoreToBuildpackLayers(restorer.Buildpacks)
+						err := restorer.Restore(testCache)
+						h.AssertNil(t, err)
+					})
 				})
 
-				it.After(func() {
-					h.AssertNil(t, os.RemoveAll(tmpDir))
-				})
+				when("there is a previous image with SBOM information", func() {
+					var image imgutil.Image
 
-				it("restores the SBOM layer from the cache", func() {
-					sbomRestorer.EXPECT().RestoreFromCache(testCache, "some-digest")
-					sbomRestorer.EXPECT().RestoreToBuildpackLayers(restorer.Buildpacks)
-					err := restorer.Restore(testCache)
-					h.AssertNil(t, err)
+					it.Before(func() {
+						h.SkipIf(t, api.MustParse(platformAPI).LessThan("0.9"), "Platform API < 0.9 does not restore SBOM from previous image")
+
+						image = fakes.NewImage("image-repo-name", "", local.IDIdentifier{
+							ImageID: "s0m3D1g3sT",
+						})
+						h.AssertNil(t, image.AddLayerWithDiffID("", "some-digest"))
+						h.AssertNil(t, image.SetLabel("io.buildpacks.lifecycle.metadata", fmt.Sprintf(`{"sbom": {"sha":"%s"}}`, "some-digest")))
+
+						restorer.PreviousImage = image
+						restorer.LayersMetadata.BOM = &platform.LayerMetadata{SHA: "some-digest"}
+					})
+
+					it("restores the SBOM layer from the previous image", func() {
+						sbomRestorer.EXPECT().RestoreFromPrevious(image, "some-digest")
+						sbomRestorer.EXPECT().RestoreToBuildpackLayers(restorer.Buildpacks)
+						err := restorer.Restore(testCache)
+						h.AssertNil(t, err)
+					})
 				})
 			})
 

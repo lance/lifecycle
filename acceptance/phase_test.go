@@ -151,7 +151,7 @@ func (d *targetDaemon) createFixtures(t *testing.T) {
 		"docker",
 		"build",
 		"-t", fixtures.AppImage,
-		"--build-arg", "fromImage="+containerBaseImage,
+		"--build-arg", "fromImage="+containerBaseImageFull,
 		"--build-arg", "metadata="+appMeta,
 		filepath.Join("testdata", "app-image"),
 	) // #nosec G204

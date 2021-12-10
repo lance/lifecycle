@@ -44,7 +44,6 @@ func TestExporter(t *testing.T) {
 
 	exportImage = exportTest.testImageRef
 	exporterPath = exportTest.containerBinaryPath
-	cacheFixtureDir = filepath.Join("testdata", "exporter", "cache-dir")
 	exportRegAuthConfig = exportTest.targetRegistry.authConfig
 	exportRegNetwork = exportTest.targetRegistry.network
 	exportDaemonFixtures = exportTest.targetDaemon.fixtures
