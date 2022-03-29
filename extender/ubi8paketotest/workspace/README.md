@@ -1,16 +1,47 @@
-# A simple test project
+# Node.js Cloud Events Function
 
-This project is designed to allow containerised build testing with developer builds of quarkus. 
+Welcome to your new Node.js function project! The boilerplate function
+code can be found in [`index.js`](./index.js). This function is meant
+to respond to [Cloud Events](https://cloudevents.io/).
 
-## Why?
+## Local execution
 
-If you build quarkus locally, you end up with quarkus as version 999-SNAPSHOT in your local maven repo. You can then use this version of quarkus with test projects to try out your updates to quarkus. This all works fine locally, but if you are trying to test aspects of the quarkus build, that will be run within a container, then your custom 999-SNAPSHOT version of quarkus will not be know to the maven instance running inside the container, and the build inside will fail. 
+After executing `npm install`, you can run this function locally by executing
+`npm run local`.
 
-## How?
+The runtime will expose three endpoints.
 
-This project uses maven profiles, to allow selection of the 999-SNAPSHOT level of quarkus only when `-Ddevbuild=true` is passed to maven. This way the local build can be told to use the development build, while the in-container build will use the release build. Because the development build is only needed to initiate the container image build, this allows the application to build as expected. 
+  * `/` The endpoint for your function.
+  * `/health/readiness` The endpoint for a readiness health check
+  * `/health/liveness` The endpoint for a liveness health check
 
-## What?
+The health checks can be accessed in your browser at
+[http://localhost:8080/health/readiness]() and
+[http://localhost:8080/health/liveness](). You can use `curl` to `POST` an event
+to the function endpoint:
 
-`./mvnw clean package -Dquarkus.container-image.build=true -Ddevbuild=true`
+```console
+curl -X POST -d '{"name": "Tiger", "customerId": "0123456789"}' \
+  -H'Content-type: application/json' \
+  -H'Ce-id: 1' \
+  -H'Ce-source: cloud-event-example' \
+  -H'Ce-type: dev.knative.example' \
+  -H'Ce-specversion: 1.0' \
+  http://localhost:8080
+```
 
+The readiness and liveness endpoints use
+[overload-protection](https://www.npmjs.com/package/overload-protection) and
+will respond with `HTTP 503 Service Unavailable` with a `Client-Retry` header if
+your function is determined to be overloaded, based on the memory usage and
+event loop delay.
+
+## Testing
+
+This function project includes a [unit test](./test/unit.js) and an
+[integration test](./test/integration.js). All `.js` files in the test directory
+are run.
+
+```console
+npm test
+```

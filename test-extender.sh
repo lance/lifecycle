@@ -59,97 +59,115 @@ mkdir -p ./kaniko
 rm -rf ./kaniko-run
 mkdir -p ./kaniko-run
 
-echo -e "$MAGENTA>>>>>>>>>> Running detect...$RESET"
+run_detect
+run_build
+run_build_extend
+run_run_extend
+export_app_image
 
-docker run \
-  -v $PWD/cnb/buildpacks/:/cnb/buildpacks \
-  -v $PWD/cnb/ext/:/cnb/ext \
-  -v $PWD/layers/:/layers \
-  -v $PWD/platform/:/platform \
-  -v $PWD/workspace/:/workspace \
-  --user 1000:1000 \
-  $REGISTRY_HOST/test-builder \
-  /cnb/lifecycle/detector -order /layers/order.toml -log-level $DEBUG
+run_detect() {
+  echo -e "$MAGENTA>>>>>>>>>> Running detect...$RESET"
 
-echo -e "$MAGENTA>>>>>>>>>> Running build for extensions...$RESET"
+  docker run \
+    -v $PWD/cnb/buildpacks/:/cnb/buildpacks \
+    -v $PWD/cnb/ext/:/cnb/ext \
+    -v $PWD/layers/:/layers \
+    -v $PWD/platform/:/platform \
+    -v $PWD/workspace/:/workspace \
+    --user 1000:1000 \
+    $REGISTRY_HOST/test-builder \
+    /cnb/lifecycle/detector -order /layers/order.toml -log-level $DEBUG
+}
 
-docker run \
-  -v $PWD/cnb/buildpacks/:/cnb/buildpacks \
-  -v $PWD/cnb/ext/:/cnb/ext \
-  -v $PWD/layers/:/layers \
-  -v $PWD/platform/:/platform \
-  -v $PWD/workspace/:/workspace \
-  --user 1000:1000 \
-  $REGISTRY_HOST/test-builder \
-  /cnb/lifecycle/builder -use-extensions -log-level $DEBUG
+run_build() {
+  echo -e "$MAGENTA>>>>>>>>>> Running build for extensions...$RESET"
 
-# Copy output /layers/config/metadata.toml so that the run extender can use it
-# (otherwise it will be overwritten when running build for buildpacks)
-cp ./layers/config/metadata.toml ./layers/config/extend-metadata.toml
+  docker run \
+    -v $PWD/cnb/buildpacks/:/cnb/buildpacks \
+    -v $PWD/cnb/ext/:/cnb/ext \
+    -v $PWD/layers/:/layers \
+    -v $PWD/platform/:/platform \
+    -v $PWD/workspace/:/workspace \
+    --user 1000:1000 \
+    $REGISTRY_HOST/test-builder \
+    /cnb/lifecycle/builder -use-extensions -log-level $DEBUG
 
-echo -e "$MAGENTA>>>>>>>>>> Running extend on build image followed by build for buildpacks...$RESET"
+  # Copy output /layers/config/metadata.toml so that the run extender can use it
+  # (otherwise it will be overwritten when running build for buildpacks)
+  cp ./layers/config/metadata.toml ./layers/config/extend-metadata.toml
+}
 
-docker run \
-  -v $PWD/cnb/buildpacks/:/cnb/buildpacks \
-  -v $PWD/cnb/ext/:/cnb/ext \
-  -v $PWD/kaniko/:/kaniko \
-  -v $PWD/layers/:/layers \
-  -v $PWD/workspace/:/workspace \
-  -e REGISTRY_HOST=$REGISTRY_HOST \
-  --user 0:0 \
-  --network host \
-  $REGISTRY_HOST/extender \
-  /cnb/lifecycle/extender \
-  -app /workspace \
-  -cache-image $REGISTRY_HOST/extended/buildimage/cache \
-  -config /layers/config/metadata.toml \
-  -kind build \
-  -log-level $DEBUG \
-  -work-dir /kaniko \
-  $REGISTRY_HOST/test-builder \
-  $REGISTRY_HOST/extended/buildimage
+run_build_extend() {
+  echo -e "$MAGENTA>>>>>>>>>> Running extend on build image followed by build for buildpacks...$RESET"
 
-docker pull $REGISTRY_HOST/extended/buildimage
+  docker run \
+    -v $PWD/cnb/buildpacks/:/cnb/buildpacks \
+    -v $PWD/cnb/ext/:/cnb/ext \
+    -v $PWD/kaniko/:/kaniko \
+    -v $PWD/layers/:/layers \
+    -v $PWD/workspace/:/workspace \
+    -e REGISTRY_HOST=$REGISTRY_HOST \
+    --user 0:0 \
+    --network host \
+    $REGISTRY_HOST/extender \
+    /cnb/lifecycle/extender \
+    -app /workspace \
+    -cache-image $REGISTRY_HOST/extended/buildimage/cache \
+    -config /layers/config/metadata.toml \
+    -kind build \
+    -log-level $DEBUG \
+    -work-dir /kaniko \
+    $REGISTRY_HOST/test-builder \
+    $REGISTRY_HOST/extended/buildimage
 
-echo -e "$MAGENTA>>>>>>>>>> Running extend on run image... $RUN_IMAGE $RESET"
+  docker pull $REGISTRY_HOST/extended/buildimage
+}
 
-docker run \
-  -v $PWD/cnb/ext/:/cnb/ext \
-  -v $PWD/kaniko-run/:/kaniko \
-  -v $PWD/layers/:/layers \
-  -v $PWD/workspace/:/workspace \
-  -e REGISTRY_HOST=$REGISTRY_HOST \
-  --user 0:0 \
-  --network host \
-  $REGISTRY_HOST/extender \
-  /cnb/lifecycle/extender \
-  -app /workspace \
-  -cache-image $REGISTRY_HOST/extended/runimage/cache \
-  -config /layers/config/extend-metadata.toml \
-  -kind run \
-  -log-level $DEBUG \
-  -work-dir /kaniko \
-  $RUN_IMAGE \
-  $REGISTRY_HOST/extended/runimage
 
-docker pull $REGISTRY_HOST/extended/runimage
+run_run_extend() {
+  echo -e "$MAGENTA>>>>>>>>>> Running extend on run image... $RUN_IMAGE $RESET"
 
-echo -e "$MAGENTA>>>>>>>>>> Exporting final app image...$RESET"
+  docker run \
+    -v $PWD/cnb/ext/:/cnb/ext \
+    -v $PWD/kaniko-run/:/kaniko \
+    -v $PWD/layers/:/layers \
+    -v $PWD/workspace/:/workspace \
+    -e REGISTRY_HOST=$REGISTRY_HOST \
+    --user 0:0 \
+    --network host \
+    $REGISTRY_HOST/extender \
+    /cnb/lifecycle/extender \
+    -app /workspace \
+    -cache-image $REGISTRY_HOST/extended/runimage/cache \
+    -config /layers/config/extend-metadata.toml \
+    -kind run \
+    -log-level $DEBUG \
+    -work-dir /kaniko \
+    $RUN_IMAGE \
+    $REGISTRY_HOST/extended/runimage
 
-docker run \
-  -v $PWD/cnb/buildpacks/:/cnb/buildpacks \
-  -v $PWD/cnb/ext/:/cnb/ext \
-  -v $PWD/layers/:/layers \
-  -v $PWD/platform/:/platform \
-  -v $PWD/workspace/:/workspace \
-  --user 0:0 \
-  --network host \
-  $REGISTRY_HOST/test-builder \
-  /cnb/lifecycle/exporter -log-level debug -run-image $REGISTRY_HOST/extended/runimage $REGISTRY_HOST/appimage
+  docker pull $REGISTRY_HOST/extended/runimage
+}
 
-docker pull $REGISTRY_HOST/appimage
+export_app_image() {
+  echo -e "$MAGENTA>>>>>>>>>> Exporting final app image...$RESET"
 
-echo -e "$MAGENTA>>>>>>>>>> Validate app imagei $RESET"
+  docker run \
+    -v $PWD/cnb/buildpacks/:/cnb/buildpacks \
+    -v $PWD/cnb/ext/:/cnb/ext \
+    -v $PWD/layers/:/layers \
+    -v $PWD/platform/:/platform \
+    -v $PWD/workspace/:/workspace \
+    --user 0:0 \
+    --network host \
+    $REGISTRY_HOST/test-builder \
+    /cnb/lifecycle/exporter -log-level debug -run-image $REGISTRY_HOST/extended/runimage $REGISTRY_HOST/appimage
 
-source $LIFECYCLE_REPO_PATH/extender/$TESTDATA/images/validate_run_image.sh
+  docker pull $REGISTRY_HOST/appimage
+}
 
+validate_app_image() {
+  echo -e "$MAGENTA>>>>>>>>>> Validate app image $RESET"
+
+  source $LIFECYCLE_REPO_PATH/extender/$TESTDATA/images/validate_run_image.sh
+}

@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -eo pipefail
+
+plan_path=$2
+
+echo "Extension detect, with plan path ${plan_path}"
+
+#DOC: Here, we need to know if we should supply a Node.js runtime. 
+#     we have to do the project determination here, because we run before
+#     any buildpack detect will, and we need to say what we will 'provide'
+#
+#     For now, we'll just look for hallmarks of a node project, and if found
+#     claim we will 'provide' node and npm
+
+if [ -f package.json -o -f package-lock.json ]; then
+  echo "Extension adding to build plan"
+  cat >> "${plan_path}" <<EOF
+[[provides]]
+name = "node"
+
+[[provides]]
+name = "npm"
+EOF
+
+fi
+
+# Always detect
+exit 0
