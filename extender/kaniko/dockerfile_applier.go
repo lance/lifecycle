@@ -3,6 +3,7 @@ package kaniko
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/GoogleContainerTools/kaniko/pkg/config"
 	"github.com/GoogleContainerTools/kaniko/pkg/executor"
@@ -17,16 +18,16 @@ const (
 )
 
 type DockerfileApplier struct {
-	cacheDir   string
-	contextDir string
-	workDir    string
+	cacheImageRef string
+	contextDir    string
+	workDir       string
 }
 
-func NewDockerfileApplier(cacheDir, contextDir, workDir string) *DockerfileApplier {
+func NewDockerfileApplier(cacheImageRef, contextDir, workDir string) *DockerfileApplier {
 	return &DockerfileApplier{
-		cacheDir:   cacheDir,
-		contextDir: contextDir,
-		workDir:    workDir,
+		cacheImageRef: cacheImageRef,
+		contextDir:    contextDir,
+		workDir:       workDir,
 	}
 }
 
@@ -48,6 +49,12 @@ func (a *DockerfileApplier) ApplyBuild(dockerfiles []extender.Dockerfile, baseIm
 			SnapshotMode:    "full",
 			SrcContext:      a.workDir,
 			CustomPlatform:  platforms.DefaultString(),
+
+			Cache:     true,
+			CacheRepo: a.cacheImageRef,
+			CacheOptions: config.CacheOptions{
+				CacheTTL: 14 * (24 * time.Hour), // TODO: should this be configurable?
+			},
 		}
 
 		if err := doKaniko(dockerfile.Path, opts, logger); err != nil {
@@ -78,6 +85,12 @@ func (a *DockerfileApplier) ApplyRun(dockerfiles []extender.Dockerfile, baseImag
 			SnapshotMode:    "full",
 			SrcContext:      a.workDir,
 			CustomPlatform:  platforms.DefaultString(),
+
+			Cache:     true,
+			CacheRepo: a.cacheImageRef,
+			CacheOptions: config.CacheOptions{
+				CacheTTL: 14 * (24 * time.Hour), // TODO: should this be configurable?
+			},
 		}
 
 		if err := doKaniko(dockerfile.Path, opts, logger); err != nil {

@@ -25,7 +25,6 @@ echo -e "$MAGENTA>>>>>>>>>> Cleanup old images$RESET"
 
 # Remove output images from daemon - note that they STILL EXIST in the local registry
 docker image rm $REGISTRY_HOST/test-builder --force
-docker image rm $REGISTRY_HOST/extended/buildimage --force # build image to extend
 docker image rm $REGISTRY_HOST/extended/runimage --force   # run image to extend
 docker image rm $REGISTRY_HOST/appimage --force
 
@@ -99,6 +98,7 @@ docker run \
   $REGISTRY_HOST/extender \
   /cnb/lifecycle/extender \
   -app /workspace \
+  -cache-image $REGISTRY_HOST/extended/buildimage/cache \
   -config /layers/config/metadata.toml \
   -kind build \
   -log-level $DEBUG \
@@ -121,6 +121,7 @@ docker run \
   $REGISTRY_HOST/extender \
   /cnb/lifecycle/extender \
   -app /workspace \
+  -cache-image $REGISTRY_HOST/extended/runimage/cache \
   -config /layers/config/extend-metadata.toml \
   -kind run \
   -log-level $DEBUG \
