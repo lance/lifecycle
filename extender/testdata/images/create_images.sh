@@ -10,3 +10,5 @@ EOF
   docker build -t $REGISTRY_HOST/test-builder .
   docker push $REGISTRY_HOST/test-builder
 fi
+
+RUN_IMAGE=cnbs/sample-stack-run:bionic

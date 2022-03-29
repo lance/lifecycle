@@ -81,7 +81,10 @@ func newBuildCmd(opts BuilderOpts) *exec.Cmd {
 		"-plan", opts.PlanPath,
 		"-platform", opts.PlatformDir,
 	)
+
+	cmd.Env = os.Environ()
 	cmd.Env = append(cmd.Env, "CNB_PLATFORM_API=0.8")
+
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout
 	cmd.SysProcAttr = &syscall.SysProcAttr{Credential: &syscall.Credential{Uid: 1000, Gid: 1000}}
